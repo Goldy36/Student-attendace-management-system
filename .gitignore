@@ -24,6 +24,7 @@ dist/
 build/
 coverage/
 .cache/
+.vercel/
 
 # Local/generated exports
 *.xlsx

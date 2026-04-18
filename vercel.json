@@ -1,0 +1,9 @@
+{
+  "cleanUrls": false,
+  "rewrites": [
+    { "source": "/admin", "destination": "/admin.html" },
+    { "source": "/teacher", "destination": "/teacher.html" },
+    { "source": "/student", "destination": "/student.html" }
+  ]
+}
+

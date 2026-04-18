@@ -82,6 +82,45 @@ http://localhost:3000
 
 ---
 
+## Deployment (Vercel + Render)
+
+Use this split architecture:
+- Frontend (static HTML): Vercel
+- Backend (Node + Socket.IO + MongoDB): Render
+
+### 1) Deploy backend on Render
+- Connect this GitHub repo in Render.
+- Use `render.yaml` (Blueprint) or manual Web Service with:
+  - Build Command: `npm install`
+  - Start Command: `npm start`
+- Set required environment variables in Render:
+  - `MONGO_URI`
+  - `JWT_SECRET`
+  - `EMAIL_USER`
+  - `EMAIL_PASS`
+  - `ALLOWED_IPS`
+- After deploy, copy backend URL, for example:
+  - `https://ai-attendance-api.onrender.com`
+
+### 2) Point frontend to backend
+- Edit [`app-config.js`](./app-config.js):
+  - `window.APP_CONFIG.API_BASE_URL = "https://your-render-service.onrender.com";`
+- Commit and push this change.
+
+### 3) Deploy frontend on Vercel
+- Import the same GitHub repo into Vercel.
+- Deploy as a static project (no framework preset needed).
+- Optional pretty routes are already configured in [`vercel.json`](./vercel.json):
+  - `/admin` -> `admin.html`
+  - `/teacher` -> `teacher.html`
+  - `/student` -> `student.html`
+
+### Notes
+- Teacher and student Socket.IO client now load from CDN and connect to the backend URL from `app-config.js`.
+- If you change backend URL later, update only `app-config.js` and redeploy frontend.
+
+---
+
 ## 📖 Test Credentials
 
 ```

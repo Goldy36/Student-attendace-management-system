@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI-ATTEND PRO v2.0 | Smart Attendance System</title>
+    <script src="./app-config.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -169,7 +170,8 @@
                 return window.__apiBaseUrl || '';
             }
 
-            const manualBase = (window.API_BASE_URL || localStorage.getItem('API_BASE_URL') || '').trim();
+            const configuredBase = (window.APP_CONFIG && window.APP_CONFIG.API_BASE_URL ? window.APP_CONFIG.API_BASE_URL : '').trim();
+            const manualBase = (window.API_BASE_URL || configuredBase || localStorage.getItem('API_BASE_URL') || '').trim();
             const { protocol, hostname, port } = window.location;
             const isLocalNetworkHost = ['localhost', '127.0.0.1', '::1'].includes(hostname)
                 || /^192\.168\./.test(hostname)
