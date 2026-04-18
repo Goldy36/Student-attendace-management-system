@@ -979,6 +979,9 @@
             window.fetch = async (resource, options) => {
                 if (typeof resource === 'string' && resource.startsWith('/api/')) {
                     const apiPath = resource;
+                    if (!baseUrl && !shouldUseLocalBackend) {
+                        throw new Error('Backend API URL is not configured. Set APP_CONFIG.API_BASE_URL in app-config.js');
+                    }
                     const primaryUrl = baseUrl ? `${baseUrl}${apiPath}` : apiPath;
                     try {
                         return await nativeFetch(primaryUrl, options);

@@ -1,9 +1,19 @@
 {
-  "cleanUrls": false,
-  "rewrites": [
-    { "source": "/admin", "destination": "/admin.html" },
-    { "source": "/teacher", "destination": "/teacher.html" },
-    { "source": "/student", "destination": "/student.html" }
+  "version": 2,
+  "builds": [
+    { "src": "index.html", "use": "@vercel/static" },
+    { "src": "admin.html", "use": "@vercel/static" },
+    { "src": "teacher.html", "use": "@vercel/static" },
+    { "src": "student.html", "use": "@vercel/static" },
+    { "src": "app-config.js", "use": "@vercel/static" },
+    { "src": "student.js", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "^/$", "dest": "/index.html" },
+    { "src": "^/admin/?$", "dest": "/admin.html" },
+    { "src": "^/teacher/?$", "dest": "/teacher.html" },
+    { "src": "^/student/?$", "dest": "/student.html" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
-
