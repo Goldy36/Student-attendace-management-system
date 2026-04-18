@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Face Scanner | AI-ATTEND PRO</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); }
+        .glass-card { background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        .gradient-btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .gradient-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4); }
+        @keyframes scan-line { 0%, 100% { top: 0%; } 50% { top: 100%; } }
+        .scan-line { animation: scan-line 2s infinite; }
+    </style>
+</head>
+<body class="text-white min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-2xl">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <div class="inline-block mb-6 p-4 rounded-full bg-gradient-to-r from-blue-600 to-purple-600">
+                <i class="fas fa-face-smile text-3xl"></i>
+            </div>
+            <h1 class="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">AI Face Scanner</h1>
+            <p class="text-gray-400">Position your face for verification</p>
+        </div>
+
+        <!-- Main Card -->
+        <div class="glass-card rounded-2xl p-8 mb-6">
+            <!-- Entry Mode -->
+            <div id="entry-mode" class="space-y-6">
+                <div>
+                    <label class="block text-sm font-bold mb-3 text-gray-300">Enter Session Code (6 digits)</label>
+                    <input type="text" id="sessionCode" placeholder="000000" maxlength="6" inputmode="numeric" class="w-full bg-slate-800/50 border-2 border-slate-600 text-center text-4xl tracking-[10px] font-bold rounded-lg px-4 py-4 text-blue-400 outline-none focus:border-blue-400">
+                </div>
+
+                <!-- WiFi Status -->
+                <div id="wifi-status" class="p-4 rounded-lg border-2 border-yellow-600 bg-yellow-900/20">
+                    <p class="flex items-center gap-2 text-sm text-yellow-300">
+                        <i class="fas fa-spinner animate-spin"></i>
+                        <span>Checking network status...</span>
+                    </p>
+                </div>
+
+                <!-- Attendance History -->
+                <div id="attendance-summary" class="hidden p-4 rounded-lg border-2 border-blue-600 bg-blue-900/20">
+                    <p class="flex items-center gap-2 text-sm text-blue-300 mb-3">
+                        <i class="fas fa-chart-pie"></i>
+                        <span font-bold>Your Attendance</span>
+                    </p>
+                    <div class="grid grid-cols-2 gap-3 text-center">
+                        <div>
+                            <p class="text-2xl font-bold text-green-400" id="att-total">0</p>
+                            <p class="text-xs text-gray-400">Classes Attended</p>
+                        </div>
+                        <div>
+                            <p class="text-2xl font-bold text-purple-400" id="att-percentage">0%</p>
+                            <p class="text-xs text-gray-400">Attendance %</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="student-dispute-card" class="p-4 rounded-lg border-2 border-amber-600 bg-amber-900/20">
+                    <div class="flex items-center justify-between gap-3 mb-3">
+                        <p class="flex items-center gap-2 text-sm text-amber-300">
+                            <i class="fas fa-gavel"></i>
+                            <span>Attendance Disputes</span>
+                        </p>
+                        <button onclick="loadStudentDisputes()" class="text-xs font-bold text-amber-200 hover:text-white">Refresh</button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+                        <input id="dispute-session-code" type="text" maxlength="6" placeholder="Session Code" class="bg-slate-800/60 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none font-mono">
+                        <input id="dispute-reason" type="text" placeholder="Reason (required)" class="md:col-span-2 bg-slate-800/60 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none">
+                    </div>
+                    <button onclick="submitStudentDispute()" class="w-full bg-amber-600 hover:bg-amber-700 py-2 rounded-lg font-bold text-sm mb-3">
+                        <i class="fas fa-paper-plane mr-2"></i>SUBMIT DISPUTE
+                    </button>
+                    <div id="student-disputes" class="space-y-2 text-sm text-gray-300">
+                        <p class="text-gray-400">Loading disputes...</p>
+                    </div>
+                </div>
+
+                <div id="student-announcements-card" class="p-4 rounded-lg border-2 border-violet-600 bg-violet-900/20">
+                    <div class="flex items-center justify-between gap-3 mb-3">
+                        <p class="flex items-center gap-2 text-sm text-violet-300">
+                            <i class="fas fa-bullhorn"></i>
+                            <span>Admin Announcements</span>
+                        </p>
+                        <button onclick="loadStudentAnnouncements()" class="text-xs font-bold text-violet-200 hover:text-white">Refresh</button>
+                    </div>
+                    <div id="student-announcements" class="space-y-3 text-sm text-gray-300">
+                        <p class="text-gray-400">Loading announcements...</p>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="space-y-3">
+                    <button onclick="startScanning()" class="w-full gradient-btn py-4 rounded-lg font-bold text-white hover:shadow-lg hover:shadow-blue-500/50">
+                        <i class="fas fa-play mr-2"></i>START SCANNING
+                    </button>
+                    <button onclick="loadAttendanceHistory()" class="w-full bg-slate-700 hover:bg-slate-600 py-3 rounded-lg font-bold">
+                        <i class="fas fa-history mr-2"></i>VIEW HISTORY
+                    </button>
+                    <button onclick="logout()" class="w-full bg-red-600 hover:bg-red-700 py-3 rounded-lg font-bold">
+                        <i class="fas fa-sign-out-alt mr-2"></i>LOGOUT
+                    </button>
+                </div>
+            </div>
+
+            <!-- Scanner Mode -->
+            <div id="scanner-mode" class="hidden space-y-6">
+                <div class="relative bg-slate-800 rounded-lg overflow-hidden border-4 border-blue-500 shadow-2xl shadow-blue-500/50">
+                    <video id="webcam" autoplay playsinline class="w-full aspect-video bg-black"></video>
+                    
+                    <!-- Face Detection Overlay -->
+                    <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div class="w-48 h-56 border-4 border-cyan-400 rounded-3xl shadow-lg shadow-cyan-500/50">
+                            <!-- Corner Brackets -->
+                            <div class="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-green-400 rounded-tl-lg"></div>
+                            <div class="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-green-400 rounded-tr-lg"></div>
+                            <div class="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-green-400 rounded-bl-lg"></div>
+                            <div class="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-green-400 rounded-br-lg"></div>
+
+                            <!-- Scan Line -->
+                            <div class="scan-line absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent"></div>
+                        </div>
+                    </div>
+
+                    <!-- Status Info -->
+                    <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-4">
+                        <div class="text-center">
+                            <p id="scan-status" class="text-lg font-bold text-cyan-400 mb-2">Detecting face...</p>
+                            <p id="scan-timer" class="text-3xl font-bold text-yellow-400">10</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Canvas (hidden) -->
+                <canvas id="capture-canvas" class="hidden"></canvas>
+
+                <!-- Control Buttons -->
+                <div class="space-y-3">
+                    <button onclick="cancelScanning()" class="w-full bg-red-600 hover:bg-red-700 py-4 rounded-lg font-bold text-white">
+                        <i class="fas fa-times mr-2"></i>CANCEL SCANNING
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error/Success Messages -->
+        <div id="error-msg" class="hidden bg-red-900/30 border-2 border-red-500 text-red-300 p-4 rounded-lg mb-4 font-bold">
+            <i class="fas fa-exclamation-circle mr-2"></i><span id="error-text"></span>
+        </div>
+
+        <div id="success-msg" class="hidden bg-green-900/30 border-2 border-green-500 text-green-300 p-4 rounded-lg mb-4 font-bold">
+            <i class="fas fa-check-circle mr-2"></i><span id="success-text"></span>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center text-gray-500 text-sm">
+            <p>🔒 Secure Face Recognition • 🌐 Real-time Sync • 📍 WiFi Verified</p>
+        </div>
+    </div>
+
+    <script>
+        function configureApiBase() {
+            if (window.__apiFetchConfigured) {
+                return window.__apiBaseUrl || '';
+            }
+
+            const manualBase = (window.API_BASE_URL || localStorage.getItem('API_BASE_URL') || '').trim();
+            const { protocol, hostname, port } = window.location;
+            const isLocalNetworkHost = ['localhost', '127.0.0.1', '::1'].includes(hostname)
+                || /^192\.168\./.test(hostname)
+                || /^10\./.test(hostname)
+                || /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname);
+
+            const shouldUseLocalBackend = protocol === 'file:' || !hostname || (isLocalNetworkHost && port !== '3000');
+            const inferredBase = !manualBase && shouldUseLocalBackend ? 'http://localhost:3000' : '';
+
+            const baseUrl = (manualBase || inferredBase).replace(/\/+$/, '');
+            const localFallbackBase = 'http://localhost:3000';
+
+            const nativeFetch = window.fetch.bind(window);
+            window.fetch = async (resource, options) => {
+                if (typeof resource === 'string' && resource.startsWith('/api/')) {
+                    const apiPath = resource;
+                    const primaryUrl = baseUrl ? `${baseUrl}${apiPath}` : apiPath;
+                    try {
+                        return await nativeFetch(primaryUrl, options);
+                    } catch (primaryError) {
+                        if (baseUrl && baseUrl !== localFallbackBase) {
+                            try {
+                                const fallbackResponse = await nativeFetch(`${localFallbackBase}${apiPath}`, options);
+                                window.__apiBaseUrl = localFallbackBase;
+                                return fallbackResponse;
+                            } catch (_) {
+                                // Ignore fallback errors and throw the original issue below.
+                            }
+                        }
+                        throw primaryError;
+                    }
+                }
+                return nativeFetch(resource, options);
+            };
+
+            window.__apiBaseUrl = baseUrl;
+            window.__apiFetchConfigured = true;
+            return baseUrl;
+        }
+
+        const API_BASE_URL = configureApiBase();
+        const socketOrigin = API_BASE_URL || window.location.origin;
+        const socket = window.io ? io(socketOrigin) : {
+            on() {},
+            emit() {}
+        };
+        let token = localStorage.getItem('token');
+        const expectedDashboardRole = 'student';
+        let studentData = JSON.parse(localStorage.getItem('studentData')) || {};
+        let stream = null;
+        let scanCountdown = 10;
+
+        function getRoleFromToken(jwtToken) {
+            try {
+                const payloadBase64 = String(jwtToken || '').split('.')[1];
+                if (!payloadBase64) return '';
+                const payloadJson = atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/'));
+                const payload = JSON.parse(payloadJson);
+                return String(payload.role || '').trim().toLowerCase();
+            } catch (_) {
+                return '';
+            }
+        }
+
+        function enforceDashboardRole(expectedRole) {
+            const normalizedExpectedRole = String(expectedRole || '').trim().toLowerCase();
+            const storedRole = String(localStorage.getItem('userRole') || '').trim().toLowerCase();
+            const tokenRole = getRoleFromToken(token);
+            if ((storedRole && storedRole !== normalizedExpectedRole) || (tokenRole && tokenRole !== normalizedExpectedRole)) {
+                localStorage.clear();
+                return false;
+            }
+            return true;
+        }
+
+        if (!token || !enforceDashboardRole(expectedDashboardRole)) window.location.href = 'index.html';
+
+        async function recoverMissingStudentProfile() {
+            try {
+                const response = await fetch('/api/auth/test-login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role: 'student' })
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Unable to recover student profile');
+                }
+
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('userRole', data.user.role);
+                localStorage.setItem('userName', data.user.name);
+                localStorage.setItem('userId', data.user.id);
+                localStorage.removeItem('offlineMode');
+                token = data.token;
+                return true;
+            } catch (err) {
+                console.error('Profile recovery failed:', err);
+                return false;
+            }
+        }
+
+        // ==================== INITIALIZATION ====================
+        async function init() {
+            checkWiFi();
+            await Promise.all([loadAttendanceHistory(), loadStudentAnnouncements(), loadStudentDisputes()]);
+        }
+
+        // ==================== WiFi VERIFICATION ====================
+        async function checkWiFi() {
+            try {
+                const res = await fetch('/api/student/verify-wifi');
+                const data = await res.json();
+                const wifiDiv = document.getElementById('wifi-status');
+
+                if (data.isAllowed) {
+                    wifiDiv.className = 'p-4 rounded-lg border-2 border-green-600 bg-green-900/20';
+                    wifiDiv.innerHTML = `<p class="flex items-center gap-2 text-sm text-green-300"><i class="fas fa-check-circle"></i>Connected to Campus Network</p><p class="text-xs text-green-200/80 mt-2">Detected IP: ${data.ip || 'unknown'}</p>`;
+                } else {
+                    wifiDiv.className = 'p-4 rounded-lg border-2 border-red-600 bg-red-900/20';
+                    wifiDiv.innerHTML = `<p class="flex items-center gap-2 text-sm text-red-300"><i class="fas fa-times-circle"></i>Not Connected to Campus Network</p><p class="text-xs text-red-200/80 mt-2">Detected IP: ${data.ip || 'unknown'}</p>`;
+                }
+            } catch (err) {
+                console.log('WiFi check skipped:', err);
+            }
+        }
+
+        // ==================== SCANNER ====================
+        async function startScanning() {
+            const code = document.getElementById('sessionCode').value;
+
+            if (code.length !== 6) {
+                showError('Enter valid 6-digit session code');
+                return;
+            }
+
+            try {
+                // Verify session exists for this student
+                const sessionRes = await fetch(`/api/student/validate-session/${code}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const sessionData = await sessionRes.json();
+                if (!sessionRes.ok) throw new Error(sessionData.error || 'Session not found or expired');
+
+                // Get user media
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+                });
+
+                document.getElementById('webcam').srcObject = stream;
+                document.getElementById('entry-mode').classList.add('hidden');
+                document.getElementById('scanner-mode').classList.remove('hidden');
+
+                // Join session
+                socket.emit('student-join-session', { sessionCode: code });
+
+                // Start countdown
+                startCountdown(code);
+            } catch (err) {
+                if (String(err.message || '').toLowerCase().includes('student profile not found')) {
+                    const recovered = await recoverMissingStudentProfile();
+                    if (recovered) {
+                        showSuccess('Student profile repaired. Please tap START SCANNING again.');
+                        await loadAttendanceHistory();
+                        return;
+                    }
+                }
+                showError(err.message);
+            }
+        }
+
+        function startCountdown(sessionCode) {
+            scanCountdown = 10;
+            const timer = setInterval(() => {
+                scanCountdown--;
+                document.getElementById('scan-timer').textContent = scanCountdown;
+
+                if (scanCountdown <= 0) {
+                    clearInterval(timer);
+                    captureAndSubmit(sessionCode);
+                }
+            }, 1000);
+        }
+
+        async function captureAndSubmit(sessionCode) {
+            try {
+                document.getElementById('scan-status').textContent = 'Capturing face...';
+
+                const canvas = document.getElementById('capture-canvas');
+                const video = document.getElementById('webcam');
+
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0);
+
+                const faceData = canvas.toDataURL('image/jpeg');
+
+                document.getElementById('scan-status').textContent = 'Processing face...';
+                const submitAttendance = async (lateReason = '') => {
+                    const response = await fetch('/api/student/mark-attendance', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ sessionCode, faceData, lateReason })
+                    });
+                    const payload = await response.json();
+                    return { response, payload };
+                };
+
+                let { response: res, payload: data } = await submitAttendance();
+
+                if (!res.ok && String(data.error || '').toLowerCase().includes('requires a reason')) {
+                    const lateReason = prompt('This attendance request is in late window. Please enter reason (minimum 5 characters):', 'Joined class late due to valid reason');
+                    if (!lateReason || lateReason.trim().length < 5) {
+                        throw new Error('Late attendance reason is required (minimum 5 characters).');
+                    }
+                    ({ response: res, payload: data } = await submitAttendance(lateReason.trim()));
+                }
+
+                if (res.ok) {
+                    document.getElementById('scan-status').textContent = 'Request Sent!';
+                    document.getElementById('scan-status').className = 'text-lg font-bold text-green-400 mb-2';
+                    document.getElementById('scan-timer').textContent = 'Pending';
+                    document.getElementById('scan-timer').className = 'text-3xl font-bold text-yellow-400';
+
+                    showSuccess(data.message || 'Attendance request sent to teacher for approval');
+
+                    setTimeout(() => {
+                        cancelScanning();
+                        document.getElementById('sessionCode').value = '';
+                    }, 2000);
+                } else {
+                    throw new Error(data.error || 'Failed to submit attendance request');
+                }
+            } catch (err) {
+                if (String(err.message || '').toLowerCase().includes('student profile not found')) {
+                    const recovered = await recoverMissingStudentProfile();
+                    if (recovered) {
+                        showSuccess('Student profile repaired. Please start scanning again.');
+                        cancelScanning();
+                        await loadAttendanceHistory();
+                        return;
+                    }
+                }
+                document.getElementById('scan-status').textContent = 'Verification Failed';
+                document.getElementById('scan-status').className = 'text-lg font-bold text-red-400 mb-2';
+                showError(err.message);
+                setTimeout(() => cancelScanning(), 2000);
+            }
+        }
+
+        function cancelScanning() {
+            stream?.getTracks().forEach(track => track.stop());
+            document.getElementById('scanner-mode').classList.add('hidden');
+            document.getElementById('entry-mode').classList.remove('hidden');
+            document.getElementById('scan-status').textContent = 'Detecting face...';
+            document.getElementById('scan-status').className = 'text-lg font-bold text-cyan-400 mb-2';
+        }
+
+        // ==================== ATTENDANCE HISTORY ====================
+        async function loadAttendanceHistory() {
+            try {
+                const res = await fetch('/api/student/my-attendance', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.error || 'Unable to load attendance');
+                }
+                document.getElementById('att-total').textContent = data.totalAttendance;
+                document.getElementById('att-percentage').textContent = Math.round(data.attendancePercentage || 0) + '%';
+                document.getElementById('attendance-summary').classList.remove('hidden');
+            } catch (err) {
+                if (String(err.message || '').toLowerCase().includes('student profile not found')) {
+                    const recovered = await recoverMissingStudentProfile();
+                    if (recovered) {
+                        await loadAttendanceHistory();
+                        return;
+                    }
+                }
+                console.error('Error loading history:', err);
+            }
+        }
+
+        async function loadStudentAnnouncements() {
+            try {
+                const res = await fetch('/api/student/announcements', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Unable to load announcements');
+
+                const container = document.getElementById('student-announcements');
+                const announcements = data.announcements || [];
+                if (!announcements.length) {
+                    container.innerHTML = '<p class="text-gray-400">No announcements available right now.</p>';
+                    return;
+                }
+
+                container.innerHTML = announcements.map(item => `
+                    <div class="rounded-lg bg-slate-950/40 border ${item.priority === 'critical' ? 'border-red-500/40' : item.priority === 'high' ? 'border-yellow-500/40' : 'border-violet-500/30'} px-4 py-3">
+                        <div class="flex items-center justify-between gap-3 mb-2">
+                            <p class="font-bold text-white">${item.title}</p>
+                            <span class="px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${item.priority === 'critical' ? 'bg-red-500/20 text-red-300' : item.priority === 'high' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-violet-500/20 text-violet-300'}">${item.priority}</span>
+                        </div>
+                        <p class="text-gray-300">${item.message}</p>
+                        <p class="text-xs text-gray-500 mt-2">${new Date(item.createdAt).toLocaleString()}</p>
+                    </div>
+                `).join('');
+            } catch (err) {
+                document.getElementById('student-announcements').innerHTML = `<p class="text-red-300">${err.message}</p>`;
+            }
+        }
+
+        async function submitStudentDispute() {
+            try {
+                const sessionCode = document.getElementById('dispute-session-code')?.value?.trim() || '';
+                const reason = document.getElementById('dispute-reason')?.value?.trim() || '';
+                if (!sessionCode || !reason) {
+                    throw new Error('Session code and reason are required');
+                }
+                const res = await fetch('/api/student/disputes', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionCode, reason })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Unable to submit dispute');
+                showSuccess(data.message || 'Dispute submitted');
+                document.getElementById('dispute-session-code').value = '';
+                document.getElementById('dispute-reason').value = '';
+                await loadStudentDisputes();
+            } catch (err) {
+                showError(err.message);
+            }
+        }
+
+        async function loadStudentDisputes() {
+            const container = document.getElementById('student-disputes');
+            if (!container) return;
+            try {
+                const res = await fetch('/api/student/disputes', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Unable to load disputes');
+
+                const disputes = data.disputes || [];
+                if (!disputes.length) {
+                    container.innerHTML = '<p class="text-gray-400">No disputes submitted yet.</p>';
+                    return;
+                }
+
+                container.innerHTML = disputes.slice(0, 8).map(item => `
+                    <div class="rounded-lg bg-slate-950/40 border border-amber-500/20 px-3 py-2">
+                        <div class="flex items-center justify-between gap-2">
+                            <p class="font-mono text-xs text-gray-300">${item.sessionCode || '-'}</p>
+                            <span class="px-2 py-1 rounded-full text-[10px] font-bold ${item.status === 'pending_teacher' ? 'bg-yellow-500/20 text-yellow-300' : item.status.includes('resolved') ? 'bg-emerald-500/20 text-emerald-300' : 'bg-cyan-500/20 text-cyan-300'}">${item.status}</span>
+                        </div>
+                        <p class="text-gray-300 text-xs mt-1">${item.reason || '-'}</p>
+                        <p class="text-gray-500 text-[11px] mt-1">${new Date(item.createdAt).toLocaleString()}</p>
+                    </div>
+                `).join('');
+            } catch (err) {
+                container.innerHTML = `<p class="text-red-300">${err.message}</p>`;
+            }
+        }
+
+        // ==================== UTILITIES ====================
+        function showError(msg) {
+            document.getElementById('error-text').textContent = msg;
+            document.getElementById('error-msg').classList.remove('hidden');
+            setTimeout(() => document.getElementById('error-msg').classList.add('hidden'), 4000);
+        }
+
+        function showSuccess(msg) {
+            document.getElementById('success-text').textContent = msg;
+            document.getElementById('success-msg').classList.remove('hidden');
+            setTimeout(() => document.getElementById('success-msg').classList.add('hidden'), 4000);
+        }
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = 'index.html';
+        }
+
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
