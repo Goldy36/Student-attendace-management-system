@@ -4391,6 +4391,9 @@ app.get('/api/teacher/handovers/:id/students', authenticateToken, async (req, re
     if (handover.status !== 'active' || (handover.teacherDecision || 'pending') !== 'accepted') {
       return res.status(400).json({ error: 'Students list is available only after accepting an active handover' });
     }
+    if (handover.substituteAttendanceCompletedAt) {
+      return res.status(400).json({ error: 'Substitute attendance session completed. Attendance link is closed.' });
+    }
 
     const students = await Student.find({ section: handover.section }).sort({ uid: 1 });
     const users = await User.find({
@@ -4503,6 +4506,9 @@ app.post('/api/teacher/start-session', authenticateToken, async (req, res) => {
       }
       if (handover.status !== 'active' || (handover.teacherDecision || 'pending') !== 'accepted') {
         return res.status(400).json({ error: 'Only accepted active handovers can start attendance' });
+      }
+      if (handover.substituteAttendanceCompletedAt) {
+        return res.status(400).json({ error: 'Substitute attendance session completed. Attendance link is closed.' });
       }
       if (String(handover.section || '').trim() !== String(section || '').trim()
         || String(handover.subject || '').trim().toLowerCase() !== String(subject || '').trim().toLowerCase()) {

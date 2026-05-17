@@ -876,7 +876,7 @@
                 await loadSessionData();
                 switchTab('active-session');
                 startSessionTimer();
-                await loadAnalytics();
+                await Promise.all([loadAnalytics(), loadTeacherHandovers(), loadSections()]);
                 showLoading(false);
                 return true;
             } catch (err) {
@@ -992,7 +992,7 @@
                 if (noteStatus) noteStatus.textContent = 'No note saved yet.';
                 document.getElementById('no-session').classList.remove('hidden');
                 document.getElementById('active-session').classList.add('hidden');
-                await loadAnalytics();
+                await Promise.all([loadAnalytics(), loadTeacherHandovers(), loadSections()]);
                 showLoading(false);
                 const shouldExport = confirm('Session ended successfully. Do you want to export the Excel file now?');
                 if (shouldExport) {
@@ -1753,7 +1753,7 @@
                         <td class="px-4 py-4 text-xs text-gray-400">${new Date(item.createdAt).toLocaleString()}</td>
                         <td class="px-4 py-4 font-mono">${item.sessionCode || '-'}</td>
                         <td class="px-4 py-4 font-mono">${item.studentUID || '-'}</td>
-                        <td class="px-4 py-4">${item.currentStatus || '-'} → ${item.requestedStatus || '-'}</td>
+                        <td class="px-4 py-4">${item.currentStatus || '-'} â†’ ${item.requestedStatus || '-'}</td>
                         <td class="px-4 py-4"><span class="px-3 py-1 rounded-full text-xs font-bold ${item.status === 'pending' ? 'bg-yellow-500/20 text-yellow-300' : item.status === 'approved' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}">${item.status || '-'}</span></td>
                         <td class="px-4 py-4 text-xs text-gray-400">${item.adminComment || '-'}</td>
                     </tr>
@@ -1851,7 +1851,6 @@
                             : statusText === 'rejected'
                                 ? 'bg-rose-500/20 text-rose-300'
                                 : 'bg-slate-700 text-slate-300';
-
                     const decisionMeta = item.teacherDecisionAt
                         ? `${item.teacherDecisionByName || 'Teacher'} • ${new Date(item.teacherDecisionAt).toLocaleString()}`
                         : '';
@@ -1862,9 +1861,13 @@
                             ? `<p class="text-xs text-emerald-300 mt-1">Approved ${decisionMeta ? `by ${decisionMeta}` : ''}</p>`
                         : item.perspective === 'outgoing' && decision === 'rejected'
                             ? `<p class="text-xs text-rose-300 mt-1">Rejected ${decisionMeta ? `by ${decisionMeta}` : ''}${decisionNote ? ` • ${decisionNote}` : ''}</p>`
-                                : item.perspective === 'outgoing'
-                                    ? '<p class="text-xs text-yellow-300 mt-1">Request sent. Waiting for teacher decision.</p>'
-                                    : '';
+                        : item.perspective === 'outgoing'
+                            ? '<p class="text-xs text-yellow-300 mt-1">Request sent. Waiting for teacher decision.</p>'
+                        : item.perspective === 'incoming' && decision === 'accepted' && item.attendanceState === 'completed'
+                            ? '<p class="text-xs text-emerald-300 mt-1">Substitute attendance session completed. Attendance link closed.</p>'
+                        : item.perspective === 'incoming' && decision === 'accepted' && item.attendanceState === 'in_progress'
+                            ? '<p class="text-xs text-cyan-300 mt-1">Attendance is in progress for this handover.</p>'
+                            : '';
 
                     let actionHtml = '<span class="text-xs text-gray-500">-</span>';
                     if (item.perspective === 'incoming' && item.status === 'active' && decision === 'pending') {
@@ -2269,7 +2272,7 @@
             if (currentSession) {
                 currentSession = { ...currentSession, expiresAt: new Date().toISOString() };
                 loadSessionData();
-                loadAnalytics();
+                Promise.all([loadAnalytics(), loadTeacherHandovers(), loadSections()]);
             }
         });
 
@@ -2278,3 +2281,4 @@
     </script>
 </body>
 </html>
+
