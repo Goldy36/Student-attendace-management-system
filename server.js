@@ -2425,9 +2425,17 @@ app.patch('/api/admin/students/:id', authenticateToken, async (req, res) => {
   try {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Unauthorized' });
 
-    const { section, department, semester, isActive } = req.body;
+    const { name, section, department, semester, isActive } = req.body;
     const student = await Student.findById(req.params.id);
     if (!student) return res.status(404).json({ error: 'Student not found' });
+    let normalizedName = '';
+
+    if (typeof name === 'string') {
+      normalizedName = name.trim();
+      if (normalizedName && student.userId) {
+        await User.findByIdAndUpdate(student.userId, { name: normalizedName });
+      }
+    }
 
     if (typeof section === 'string' && section.trim()) {
       student.section = section.trim();
@@ -2445,6 +2453,7 @@ app.patch('/api/admin/students/:id', authenticateToken, async (req, res) => {
     }
 
     await logAdminAudit(req, 'student.updated', 'student', student._id, {
+      name: normalizedName || undefined,
       section: student.section,
       department: student.department,
       semester: student.semester,
