@@ -72,7 +72,7 @@ const TEST_ACCOUNT_CONFIG = {
     email: 'test-teacher@ai-attend.local',
     name: 'Test Teacher',
     department: 'CSE',
-    password: 'test123456',
+    password: '123456789',
     sections: [
       { sectionName: '24BCS-601', subject: 'AI Fundamentals' },
       { sectionName: '24BCS-601', subject: 'Machine Learning' },
