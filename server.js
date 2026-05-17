@@ -4140,6 +4140,47 @@ app.post('/api/teacher/disputes/:id/action', authenticateToken, async (req, res)
   }
 });
 
+app.get('/api/teacher/handovers/teacher-suggestions', authenticateToken, async (req, res) => {
+  try {
+    const context = await getTeacherContext(req.user.id);
+    if (!context) return res.status(404).json({ error: 'Teacher profile not found' });
+
+    const query = String(req.query.query || '').trim();
+    if (query.length < 2) {
+      return res.json({ suggestions: [] });
+    }
+
+    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const matches = await Teacher.find({
+      _id: { $ne: context.teacher._id },
+      employeeID: { $regex: `^${escapedQuery}`, $options: 'i' }
+    })
+      .select('_id userId employeeID')
+      .limit(12);
+
+    const userIds = matches.map(item => item.userId).filter(Boolean);
+    const users = await User.find({ _id: { $in: userIds } }).select('_id name department');
+    const userMap = new Map(users.map(item => [String(item._id), item]));
+
+    const suggestions = matches
+      .filter(item => String(item.employeeID || '').trim())
+      .map(item => {
+        const linkedUser = item.userId ? userMap.get(String(item.userId)) : null;
+        return {
+          teacherId: item._id,
+          employeeID: String(item.employeeID || '').trim(),
+          name: linkedUser?.name || 'Teacher',
+          department: linkedUser?.department || ''
+        };
+      })
+      .sort((a, b) => a.employeeID.localeCompare(b.employeeID));
+
+    res.json({ suggestions });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/teacher/handovers/request', authenticateToken, async (req, res) => {
   try {
     const context = await getTeacherContext(req.user.id);

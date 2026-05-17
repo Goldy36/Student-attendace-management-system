@@ -614,7 +614,10 @@
                     <div class="rounded-lg border border-slate-700 bg-slate-900/40 p-4 mb-5">
                         <p class="text-sm font-bold text-cyan-300 mb-3">Send Handover Request</p>
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
-                            <input id="teacher-handover-employee-code" type="text" placeholder="Target Teacher Employee Code" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none">
+                            <div class="relative">
+                                <input id="teacher-handover-employee-code" type="text" placeholder="Target Teacher Employee Code" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none" autocomplete="off">
+                                <div id="teacher-handover-employee-suggestions" class="hidden absolute z-30 left-0 right-0 mt-1 bg-slate-900 border border-slate-600 rounded-lg shadow-xl max-h-56 overflow-y-auto"></div>
+                            </div>
                             <select id="teacher-handover-class" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white outline-none">
                                 <option value="">Select your class</option>
                             </select>
@@ -759,6 +762,8 @@
         let teacherSessionHistoryCache = [];
         let teacherHandoversCache = [];
         let selectedHandoverAttendance = null;
+        let teacherHandoverSuggestions = [];
+        let teacherHandoverSuggestionTimer = null;
 
         function getRoleFromToken(jwtToken) {
             try {
@@ -790,6 +795,7 @@
             const userName = localStorage.getItem('userName');
             document.getElementById('teacher-name').textContent = userName || 'Teacher';
             bindTeacherFilters();
+            bindTeacherEmployeeAutocomplete();
             await Promise.all([loadSections(), loadTeacherProfileOverview(), loadAnalytics(), loadTeacherAnnouncements(), loadTeacherWorkflow(), loadStudentRiskList()]);
         }
 
@@ -1533,6 +1539,102 @@
                 .join('');
         }
 
+        function escapeText(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function hideTeacherEmployeeSuggestions() {
+            const box = document.getElementById('teacher-handover-employee-suggestions');
+            if (!box) return;
+            box.classList.add('hidden');
+            box.innerHTML = '';
+        }
+
+        function selectTeacherEmployeeSuggestion(employeeID) {
+            const input = document.getElementById('teacher-handover-employee-code');
+            if (!input) return;
+            input.value = String(employeeID || '').trim();
+            hideTeacherEmployeeSuggestions();
+        }
+
+        function selectTeacherEmployeeSuggestionByIndex(index) {
+            const item = teacherHandoverSuggestions[index];
+            if (!item) return;
+            selectTeacherEmployeeSuggestion(item.employeeID);
+        }
+
+        function renderTeacherEmployeeSuggestions(items = []) {
+            const box = document.getElementById('teacher-handover-employee-suggestions');
+            if (!box) return;
+
+            if (!items.length) {
+                box.classList.add('hidden');
+                box.innerHTML = '';
+                return;
+            }
+
+            box.innerHTML = items.map((item, index) => `
+                <button type="button" class="w-full text-left px-3 py-2 hover:bg-slate-700/70 border-b border-slate-700 last:border-b-0"
+                    onclick="selectTeacherEmployeeSuggestionByIndex(${index})">
+                    <p class="font-semibold text-cyan-300">${escapeText(item.employeeID)}</p>
+                    <p class="text-xs text-gray-300">${escapeText(item.name || 'Teacher')}</p>
+                </button>
+            `).join('');
+            box.classList.remove('hidden');
+        }
+
+        async function fetchTeacherEmployeeSuggestions(query) {
+            const trimmedQuery = String(query || '').trim();
+            if (trimmedQuery.length < 2) {
+                teacherHandoverSuggestions = [];
+                hideTeacherEmployeeSuggestions();
+                return;
+            }
+
+            const res = await fetch(`/api/teacher/handovers/teacher-suggestions?query=${encodeURIComponent(trimmedQuery)}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Unable to load teacher suggestions');
+            teacherHandoverSuggestions = data.suggestions || [];
+            renderTeacherEmployeeSuggestions(teacherHandoverSuggestions);
+        }
+
+        function bindTeacherEmployeeAutocomplete() {
+            const input = document.getElementById('teacher-handover-employee-code');
+            if (!input || input.dataset.bound === 'true') return;
+            input.dataset.bound = 'true';
+
+            input.addEventListener('input', () => {
+                const query = input.value || '';
+                if (teacherHandoverSuggestionTimer) {
+                    clearTimeout(teacherHandoverSuggestionTimer);
+                }
+                teacherHandoverSuggestionTimer = setTimeout(async () => {
+                    try {
+                        await fetchTeacherEmployeeSuggestions(query);
+                    } catch (_) {
+                        hideTeacherEmployeeSuggestions();
+                    }
+                }, 180);
+            });
+
+            input.addEventListener('blur', () => {
+                setTimeout(() => hideTeacherEmployeeSuggestions(), 150);
+            });
+
+            input.addEventListener('focus', () => {
+                if (teacherHandoverSuggestions.length > 0) {
+                    renderTeacherEmployeeSuggestions(teacherHandoverSuggestions);
+                }
+            });
+        }
+
         async function sendTeacherHandoverRequest() {
             try {
                 showLoading(true);
@@ -1575,6 +1677,7 @@
                 }
                 document.getElementById('teacher-handover-employee-code').value = '';
                 document.getElementById('teacher-handover-note').value = '';
+                hideTeacherEmployeeSuggestions();
                 await loadTeacherHandovers();
             } catch (err) {
                 const statusBox = document.getElementById('teacher-handover-request-status');
